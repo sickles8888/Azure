@@ -32,14 +32,14 @@
         "existingVnetResourceGroupName": {
             "type": "String",
             "metadata": {
-                "description": "#´æ·ÅVnetµÄ×ÊÔ´×éµÄÃû×Ö"
+                "description": "#å­˜æ”¾Vnetçš„èµ„æºç»„çš„åå­—"
             }
         },
         "VnetName": {
             "defaultValue": "",
             "type": "String",
             "metadata": {
-                "description": "#VnetµÄÃû×Ö"
+                "description": "#Vnetçš„åå­—"
             }
         },
         "subnetName": {
@@ -50,7 +50,7 @@
             ],
             "type": "String",
             "metadata": {
-                "description": "#×ÓÍøµÄÃû×Ö"
+                "description": "#å­ç½‘çš„åå­—"
             }
         },
         "vmSize": {
@@ -87,7 +87,7 @@
             ],
             "type": "String",
             "metadata": {
-                "description": "#SLBµÄNATµÄ¶Ë¿ÚºÅ£¬¸ù¾İ²»Í¬²Ù×÷ÏµÍ³½øĞĞÑ¡Ôñ"
+                "description": "#SLBçš„NATçš„ç«¯å£å·ï¼Œæ ¹æ®ä¸åŒæ“ä½œç³»ç»Ÿè¿›è¡Œé€‰æ‹©"
             }
         }
     },
