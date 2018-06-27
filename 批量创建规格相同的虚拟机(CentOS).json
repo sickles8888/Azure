@@ -1,0 +1,242 @@
+﻿{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "existingVirtualNetworkResourceGroup": {
+            "defaultValue": "SystexDC",
+            "type": "String",
+            "metadata": {
+                "description": "#存放已存在Vnet的资源组名字"
+            }
+        },
+        "existingVirtualNetworkName": {
+            "defaultValue": "Systex-DC-Vnet",
+            "type": "String",
+            "metadata": {
+                "description": "#Vnet的名字"
+            }
+        },
+        "subnetName": {
+            "defaultValue": "",
+            "allowedValues": [
+                "Web-Subnet01",
+                "APP-Subnet01",
+                "DBS-Subnet01",
+                "DMZ-Subnet01",
+                "PAAS-Subnet01",
+                "Management-Subnet01"
+
+            ],
+            "type": "String",
+            "metadata": {
+                "description": "#子网的名字"
+            }
+        },
+        "adminUsername": {
+            "type": "String",
+            "metadata": {
+                "description": "Admin username"
+            }
+        },
+        "adminPassword": {
+            "type": "SecureString",
+            "metadata": {
+                "description": "Admin password"
+            }
+        },
+        "vmNamePrefix": {
+            "defaultValue": "",
+            "type": "String",
+            "metadata": {
+                "description": "Prefix to use for VM names"
+            }
+        },
+        "imageOffer": {
+            "defaultValue": "CentOS",
+            "type": "String",
+            "metadata": {
+                "description": "Image Offer"
+            }
+        },
+        "imageSKU": {
+            "defaultValue": "7.4",
+            "allowedValues": [
+                "7.4",
+                "7.3",
+                "7.2",
+                "7.1",
+                "7.0",
+                "6.8",
+                "6.5"
+            ],
+            "type": "String",
+            "metadata": {
+                "description": "Image SKU"
+            }
+        },
+        "vmSize": {
+            "defaultValue": "Standard_D1",
+            "allowedValues": [
+                "Standard_D1",
+                "Standard_D2",
+                "Standard_D3",
+                "Standard_D4",
+                "Standard_D1_v2",
+                "Standard_D2_v2",
+                "Standard_D3_v2",
+                "Standard_D4_v2",
+                "Standard_F8",
+                "Standard_F16",
+                "Standard_DS2",
+                "Standard_DS3",
+                "Standard_DS4",
+                "Standard_DS2_v2",
+                "Standard_DS3_v2",
+                "Standard_DS4_v2",
+                "Standard_DS5_v2"
+            ],
+            "type": "String",
+            "metadata": {
+                "description": "Size of the VM"
+            }
+        },
+        "NumberOfInstances": {
+        "type": "int",
+        "defaultValue": 2,
+        "minValue": 1,
+        "maxValue": 10,
+        "metadata": {
+        "description": "Number of VMs to provision,1-10"
+                }
+            },
+
+        "diagstorageAccountName": {
+            "type": "String",
+            "metadata": {
+                "description": "Name of the diagStorage Account"
+            }
+        }
+    },
+    "variables": {
+        "imagePublisher":"OpenLogic",
+        "diagStorageAccountName": "[parameters('diagStorageAccountName')]",
+        "availabilitySetName": "[concat(parameters('vmNamePrefix'),'-AvSet')]",
+        "vnetID": "[resourceId(parameters('existingVirtualNetworkResourceGroup'), 'Microsoft.Network/virtualNetworks', parameters('existingVirtualNetworkName'))]",
+        "subnetRef": "[concat(variables('vnetID'),'/subnets/',parameters ('subnetName'))]",
+        "nicNamePrefix": "[concat(parameters('vmNamePrefix'))]"
+    },
+    "resources": [
+        {
+            "apiVersion": "2016-01-01",
+            "type": "Microsoft.Storage/storageAccounts",
+            "sku": {
+                "name": "Standard_LRS"
+            },
+            "kind": "Storage",
+            "name": "[variables('diagStorageAccountName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "DiagStorageAccount"
+            },
+            "properties": {}
+        },
+        {
+            "type": "Microsoft.Compute/availabilitySets",
+            "name": "[variables('availabilitySetName')]",
+            "apiVersion": "2016-04-30-preview",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "AvailabilitySets"
+            },
+            "properties": {
+                "platformFaultDomainCount": "2",
+                "platformUpdateDomainCount": "5",
+                "managed": true
+            }
+        },
+        {
+            "apiVersion": "2016-09-01",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[concat(variables('nicNamePrefix'), copyindex())]",
+            "location": "[resourceGroup().location]",
+            "copy": {
+                "name": "nicLoop",
+                "count": "[parameters('numberOfInstances')]"
+            },
+            "tags": {
+                "displayName": "NetworkInterfaces"
+            },
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[variables('subnetRef')]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2016-04-30-preview",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[concat(parameters('vmNamePrefix'), copyindex())]",
+            "location": "[resourceGroup().location]",
+            "copy": {
+                "name": "virtualMachineLoop",
+                "count": "[parameters('numberOfInstances')]"
+            },
+            "tags": {
+                "displayName": "VirtualMachines"
+            },
+            "properties": {
+                "availabilitySet": {
+                    "id": "[resourceId('Microsoft.Compute/availabilitySets',variables('availabilitySetName'))]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "[parameters('vmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[concat(parameters('vmNamePrefix'), copyIndex())]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('imagePublisher')]",
+                        "offer": "[parameters('imageOffer')]",
+                        "sku": "[parameters('imageSKU')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "createOption": "FromImage",
+                        "managedDisk": {
+                            "storageAccountType": "Standard_LRS"
+                        }
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces',concat(variables('nicNamePrefix'),copyindex()))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": "true",
+                        "storageUri": "[concat('http://',parameters('diagstorageAccountName'),'.blob.core.chinacloudapi.cn')]"
+                    }
+                }
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Storage/storageAccounts/', variables('diagstorageAccountName'))]",
+                "[concat('Microsoft.Network/networkInterfaces/', variables('nicNamePrefix'), copyindex())]",
+                "[concat('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]"
+            ]
+        }
+    ]
+}
