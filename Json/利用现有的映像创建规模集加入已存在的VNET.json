@@ -1,0 +1,226 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "vmssName": {
+            "maxLength": 61,
+            "type": "String",
+            "metadata": {
+                "description": "Unique name for the scale set. Must be 3-61 characters in length and unique across the VNet."
+            }
+        },
+        "instanceCount": {
+            "defaultValue": 2,
+            "maxValue": 100,
+            "type": "Int",
+            "metadata": {
+                "description": "Number of VM instances (100 or less)."
+            }
+        },
+        "adminUsername": {
+            "type": "String"
+        },
+        "adminPassword": {
+            "type": "SecureString"
+        },
+        "ImageID": {
+            "type": "String",
+            "metadata": {
+                "description": "imageID"
+            }
+        },
+        "existingVnetResourceGroupName": {
+            "type": "String",
+            "metadata": {
+                "description": "#存放Vnet的资源组的名字"
+            }
+        },
+        "VnetName": {
+            "defaultValue": "",
+            "type": "String",
+            "metadata": {
+                "description": "#Vnet的名字"
+            }
+        },
+        "subnetName": {
+            "allowedValues": [
+                "FESubnet01",
+                "BESubnet01",
+                "APSubnet01"
+            ],
+            "type": "String",
+            "metadata": {
+                "description": "#子网的名字"
+            }
+        },
+        "vmSize": {
+            "defaultValue": "Standard_D1",
+            "allowedValues": [
+                "Standard_D1",
+                "Standard_D2",
+                "Standard_D3",
+                "Standard_D4",
+                "Standard_D1_v2",
+                "Standard_D2_v2",
+                "Standard_D3_v2",
+                "Standard_D4_v2",
+                "Standard_F8",
+                "Standard_F16",
+                "Standard_DS2",
+                "Standard_DS3",
+                "Standard_DS4",
+                "Standard_DS2_v2",
+                "Standard_DS3_v2",
+                "Standard_DS4_v2",
+                "Standard_DS5_v2"
+            ],
+            "type": "String",
+            "metadata": {
+                "description": "Size of the VM"
+            }
+        },
+        "NATport": {
+            "defaultValue": "22",
+            "allowedValues": [
+                "22",
+                "3389"
+            ],
+            "type": "String",
+            "metadata": {
+                "description": "#SLB的NAT的端口号，根据不同操作系统进行选择"
+            }
+        }
+    },
+    "variables": {
+        "vmssdisplayname":"[concat(parameters('vmssName'), '-ScaleSets')]",
+        "location": "[resourceGroup().location]",
+        "networkApiVersion": "2017-04-01",
+        "publicIPAddressName": "[concat(parameters('vmssName'), '-PIP')]",
+        "loadBalancerName": "[concat(parameters('vmssName'), '-SLB')]",
+        "publicIPAddressID": "[resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPAddressName'))]",
+        "lbID": "[resourceId('Microsoft.Network/loadBalancers',variables('loadBalancerName'))]",
+        "natPoolName": "[concat(parameters('vmssName'), 'natpool')]",
+        "bePoolName": "[concat(parameters('vmssName'), 'bepool')]",
+        "natStartPort": 50000,
+        "natEndPort": 50120,
+        "natBackendPort": "[concat(parameters('NATport'))]",
+        "frontEndIPConfigID": "[concat(variables('lbID'),'/frontendIPConfigurations/loadBalancerFrontEnd')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[variables('publicIPAddressName')]",
+            "apiVersion": "[variables('networkApiVersion')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "publicIPAllocationMethod": "Dynamic"
+            }
+        },
+        {
+            "type": "Microsoft.Network/loadBalancers",
+            "name": "[variables('loadBalancerName')]",
+            "apiVersion": "[variables('networkApiVersion')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "frontendIPConfigurations": [
+                    {
+                        "name": "LoadBalancerFrontEnd",
+                        "properties": {
+                            "publicIPAddress": {
+                                "id": "[variables('publicIPAddressID')]"
+                            }
+                        }
+                    }
+                ],
+                "backendAddressPools": [
+                    {
+                        "name": "[variables('bePoolName')]"
+                    }
+                ],
+                "inboundNatPools": [
+                    {
+                        "name": "[variables('natPoolName')]",
+                        "properties": {
+                            "frontendIPConfiguration": {
+                                "id": "[variables('frontEndIPConfigID')]"
+                            },
+                            "protocol": "tcp",
+                            "frontendPortRangeStart": "[variables('natStartPort')]",
+                            "frontendPortRangeEnd": "[variables('natEndPort')]",
+                            "backendPort": "[variables('natBackendPort')]"
+                        }
+                    }
+                ]
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPAddressName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachineScaleSets",
+            "sku": {
+                "name": "[parameters('vmSize')]",
+                "capacity": "[parameters('InstanceCount')]"
+            },
+            "name": "[variables('vmssdisplayName')]",
+            "apiVersion": "2017-03-30",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "upgradePolicy": {
+                    "mode": "Manual"
+                },
+                "virtualMachineProfile": {
+                    "storageProfile": {
+                        "imageReference": {
+                            "id": "[parameters('ImageID')]"
+                        }
+                    },
+                    "osProfile": {
+                        "computerNamePrefix": "[parameters('vmssName')]",
+                        "adminUsername": "[parameters('adminUsername')]",
+                        "adminPassword": "[parameters('adminPassword')]"
+                    },
+                    "networkProfile": {
+                        "networkInterfaceConfigurations": [
+                            {
+                                "name": "myNic",
+                                "properties": {
+                                    "primary": "true",
+                                    "ipConfigurations": [
+                                        {
+                                            "name": "myIpConfig",
+                                            "properties": {
+                                                "subnet": {
+                                                    "id": "[resourceId(parameters('existingVnetResourceGroupName'), 'Microsoft.Network/virtualNetworks/subnets', parameters('VnetName'), parameters('SubNetName'))]"
+                                                },
+                                                "publicipaddressconfiguration": {
+                                                    "name": "pub1",
+                                                    "properties": {
+                                                        "idleTimeoutInMinutes": 15
+                                                    }
+                                                },
+                                                "loadBalancerBackendAddressPools": [
+                                                    {
+                                                        "id": "[concat('/subscriptions/', subscription().subscriptionId,'/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Network/loadBalancers/', variables('loadBalancerName'), '/backendAddressPools/', variables('bePoolName'))]"
+                                                    }
+                                                ],
+                                                "loadBalancerInboundNatPools": [
+                                                    {
+                                                        "id": "[concat('/subscriptions/', subscription().subscriptionId,'/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Network/loadBalancers/', variables('loadBalancerName'), '/inboundNatPools/', variables('natPoolName'))]"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                }
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Network/loadBalancers/', variables('loadBalancerName'))]"
+            ]
+        }
+    ]
+}
