@@ -1,0 +1,206 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "vmName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the VM"
+            }
+        },
+        "osType": {
+            "type": "string",
+            "allowedValues": [
+                "Windows",
+                "Linux"
+            ],
+            "metadata": {
+                "description": "Type of OS on the existing vhd"
+            }
+        },
+        "osDiskVHDURI": {
+            "type": "string",
+            "metadata": {
+                "description": "URL of the existing VHD in ARM standard or premium storage"
+            }
+        },
+        "vmSize": {
+            "defaultValue": "Standard_D1",
+            "allowedValues": [
+                "Standard_D1",
+                "Standard_D2",
+                "Standard_D3",
+                "Standard_D4",
+                "Standard_D1_v2",
+                "Standard_D2_v2",
+                "Standard_D3_v2",
+                "Standard_D4_v2",
+                "Standard_F8",
+                "Standard_F16",
+                "Standard_DS2",
+                "Standard_DS3",
+                "Standard_DS4",
+                "Standard_DS2_v2",
+                "Standard_DS3_v2",
+                "Standard_DS4_v2",
+                "Standard_DS5_v2"
+            ],
+            "type": "String",
+            "metadata": {
+                "description": "Size of the VM"
+            }
+        },
+        "existingVirtualNetworkResourceGroup": {
+            "type": "string",
+            "defaultValue": "Azure-DR-POC",
+            "metadata": {
+                "description": "Name of the existing VNET resource group"
+            }
+        },
+         "existingVirtualNetworkName": {
+            "type": "string",
+            "defaultValue": "DR-POC-Vnet",
+            "metadata": {
+                "description": "Name of the existing VNET"
+            }
+        },
+        "subnetName": {
+            "type": "string",
+            "allowedValues": [
+                "FESubnet01",
+                "BESubnet01",
+                "APSubnet01"
+            ],
+            "metadata": {
+                "description": "Name of the subnet in the virtual network you want to use"
+            }
+        },
+        "privateIpAddress": {
+            "type": "string",
+            "metadata": {
+                "description": "Static IP Address,Example: 10.10.1.100 "
+            }
+        },
+        "AvailabilitySetName": {
+            "type": "string",
+            "minLength": 1,
+            "metadata": {
+                "description": "Name of the AvailabilitySet"
+            }  
+        },
+        "diagStorageAccountName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the diagStorage Account"
+            }
+        }
+    },
+    "variables": {
+        "diagStorageAccountName": "[parameters('diagStorageAccountName')]",
+        "api-version": "2015-06-15",
+        "vnetID": "[resourceId(parameters('existingVirtualNetworkResourceGroup'), 'Microsoft.Network/virtualNetworks', parameters('existingVirtualNetworkName'))]",
+        "subnetRef": "[concat(variables('vnetID'),'/subnets/', parameters('subnetName'))]",
+        "nicName": "[parameters('vmName')]",
+        "AvailabilitySetName":"[parameters('AvailabilitySetName')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[variables('diagStorageAccountName')]",
+            "apiVersion": "2016-01-01",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Standard_LRS"
+            },
+            "tags": {
+                "displayName": "DiagStorageAccount"
+            },
+            "kind": "Storage",
+            "properties": {}
+        },
+        {
+            "apiVersion": "2016-09-01",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('nicName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [],
+            "tags": {
+                "displayName": "NetworkInterface"
+            },
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIpAddressVersion": "IPv4",
+                            "privateIPAllocationMethod": "Static",
+                            "subnet": {
+                                "id": "[variables('subnetRef')]"
+                            },
+                            "privateIpAddress": "[parameters('privateIpAddress')]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "[variables('api-version')]",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[parameters('vmName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "VirtualMachine"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Network/networkInterfaces/', variables('nicName'))]",
+                "[concat('Microsoft.Compute/availabilitySets/', variables('AvailabilitySetName'))]"
+            ],
+            "properties": {
+                "availabilitySet": {
+                "id": "[resourceId('Microsoft.Compute/availabilitySets',variables('AvailabilitySetName'))]"
+                 },
+                "hardwareProfile": {
+                    "vmSize": "[parameters('vmSize')]"
+                },
+                "storageProfile": {
+                    "osDisk": {
+                        "name": "[concat(parameters('vmName'))]",
+                        "osType": "[parameters('osType')]",
+                        "caching": "ReadWrite",
+                        "vhd": {
+                            "uri": "[parameters('osDiskVhdUrI')]"
+                        },
+                        "createOption": "Attach"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces',variables('nicName'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": "true",
+                        "storageUri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', variables('diagStorageAccountName')), '2016-01-01').primaryEndpoints.blob)]"
+                    }
+                }
+            }
+        },
+        {
+            "name": "[parameters('AvailabilitySetName')]",
+            "type": "Microsoft.Compute/availabilitySets",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2015-06-15",
+            "dependsOn": [],
+            "tags": {
+                "displayName": "AvailabilitySet"
+            },
+            "properties": {
+                "platformUpdateDomainCount": 5,
+                "platformFaultDomainCount": 2
+            }
+        }
+    ]
+}
