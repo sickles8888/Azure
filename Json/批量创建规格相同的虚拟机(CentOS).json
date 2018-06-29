@@ -157,7 +157,7 @@
         {
             "apiVersion": "2016-09-01",
             "type": "Microsoft.Network/networkInterfaces",
-            "name": "[concat(variables('nicNamePrefix'), copyindex())]",
+            "name": "[concat(variables('nicNamePrefix'), copyindex(1))]",
             "location": "[resourceGroup().location]",
             "copy": {
                 "name": "nicLoop",
@@ -183,7 +183,7 @@
         {
             "apiVersion": "2016-04-30-preview",
             "type": "Microsoft.Compute/virtualMachines",
-            "name": "[concat(parameters('vmNamePrefix'), copyindex())]",
+            "name": "[concat(parameters('vmNamePrefix'), copyindex(1))]",
             "location": "[resourceGroup().location]",
             "copy": {
                 "name": "virtualMachineLoop",
@@ -200,7 +200,7 @@
                     "vmSize": "[parameters('vmSize')]"
                 },
                 "osProfile": {
-                    "computerName": "[concat(parameters('vmNamePrefix'), copyIndex())]",
+                    "computerName": "[concat(parameters('vmNamePrefix'), copyIndex(1))]",
                     "adminUsername": "[parameters('adminUsername')]",
                     "adminPassword": "[parameters('adminPassword')]"
                 },
@@ -221,7 +221,7 @@
                 "networkProfile": {
                     "networkInterfaces": [
                         {
-                            "id": "[resourceId('Microsoft.Network/networkInterfaces',concat(variables('nicNamePrefix'),copyindex()))]"
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces',concat(variables('nicNamePrefix'),copyindex(1)))]"
                         }
                     ]
                 },
@@ -234,7 +234,7 @@
             },
             "dependsOn": [
                 "[concat('Microsoft.Storage/storageAccounts/', variables('diagstorageAccountName'))]",
-                "[concat('Microsoft.Network/networkInterfaces/', variables('nicNamePrefix'), copyindex())]",
+                "[concat('Microsoft.Network/networkInterfaces/', variables('nicNamePrefix'), copyindex(1))]",
                 "[concat('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]"
             ]
         }
